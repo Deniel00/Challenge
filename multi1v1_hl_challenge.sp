@@ -20,13 +20,15 @@
 #include <autoexecconfig>
 #include <hl_challenge>
 #include <cstrike>
-#include <store>
 
 #define REQUIRE_PLUGIN
 #include <multi1v1>
 
+#undef REQUIRE_PLUGIN
+#include <stamm>
+
 #pragma semicolon 1
-#pragma newdecls required
+//#pragma newdecls required
 
 #define PLUGIN_VERSION "1.1.5"
 //#define DEBUG
@@ -52,7 +54,7 @@ ConVar gcv_bChallengePref = null;
 bool ga_bChallengePref[MAXPLAYERS + 1] = {true, ...};
 bool ga_bIsInChallenge[MAXPLAYERS + 1] = {false, ...};
 bool g_bLateLoad;
-bool g_bZephrusStore = false;
+bool g_bStamm = false;
 
 /* Integers */
 int ga_iCooldown[MAXPLAYERS + 1] = {0, ...};
@@ -64,7 +66,7 @@ public Plugin myinfo =
 {
 	name = "[Multi-1v1] Challenge",
 	author = "Headline",
-	description = "A simple challlenge plugin for Splewis' Multi-1v1 Style servers!",
+	description = "A simple challlenge plugin for Splewis' Multi-1v1 Style servers! Rewrite to stamm, Deniel",
 	version = PLUGIN_VERSION,
 	url = "http://www.michaelwflaherty.com"
 }
@@ -75,8 +77,8 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int err_max)
 {
-	MarkNativeAsOptional("Store_GetClientCredits");
-	MarkNativeAsOptional("Store_SetClientCredits");
+	//MarkNativeAsOptional("Store_GetClientCredits");
+	//MarkNativeAsOptional("Store_SetClientCredits");
 	
 	g_bLateLoad = bLate;
 	
@@ -169,22 +171,26 @@ void onChallengeWon(int winner, int loser)
 
 public void OnAllPluginsLoaded()
 {
-	g_bZephrusStore = LibraryExists("store_zephyrus");
+	if (STAMM_IsAvailable()) 
+	{
+		g_bStamm = true;
+	}
+	g_bStamm = false;
 }
 
 public void OnLibraryAdded(const char[] library)
 {
-	if (StrEqual(library, "store_zephyrus"))
+	if (StrEqual(library, "stamm"))
 	{
-		g_bZephrusStore = true;
+		g_bStamm = true;
 	}
 }
 
 public void OnLibraryRemoved(const char[] library)
 {
-	if (StrEqual(library, "store_zephyrus"))
+	if (StrEqual(library, "stamm"))
 	{
-		g_bZephrusStore = false;
+		g_bStamm = false;
 	}
 }
 /******************************************************************
@@ -298,15 +304,15 @@ public Action Event_PlayerDisconnect(Event hEvent, const char[] sName, bool bDon
 		ga_bIsInChallenge[client] = false;
 		ga_bIsInChallenge[partner] = false;
 		
-		if (g_bZephrusStore && betAmount > 0)
+		if (g_bStamm && betAmount > 0)
 		{
-			int credits;
-			Multi1v1_MessageToAll(" \x03%N\x01 has beaten \x03%N\x01 in a challenge over \x03%i\x01 credits!", partner, client, betAmount);
+			//int credits;
+			Multi1v1_MessageToAll(" \x03%N\x01 has beaten \x03%N\x01 in a challenge over \x03%i\x01 point!", partner, client, betAmount);
 			
-			credits = Store_GetClientCredits(client);
-			Store_SetClientCredits(client, credits - betAmount);
-			credits = Store_GetClientCredits(partner);
-			Store_SetClientCredits(partner, credits + betAmount);
+			//credits = STAMM_GetClientPoints(client);
+			STAMM_DelClientPoints(client, betAmount);
+			//credits = STAMM_GetClientPoints(partner);
+			STAMM_AddClientPoints(partner, betAmount);
 		}
 		else
 		{
@@ -588,7 +594,7 @@ public int MainMenu_CallBack(Menu MainMenu, MenuAction action, int param1, int p
 				return;
 			}
 
-			if (g_bZephrusStore)
+			if (g_bStamm)
 			{
 				OpenBetSelectionMenu(param1, target);
 			}
@@ -608,7 +614,7 @@ void OpenBetSelectionMenu(int client, int target)
 {
 	char sInfoBuffer[128], sTitle[128], sDisplayBuffer[128];
 	
-	Format(sTitle, sizeof(sTitle), "Select Credit Amount To Bet!");
+	Format(sTitle, sizeof(sTitle), "Select Point Amount To Bet!");
 	
 	Menu MainMenu = new Menu(CreditMenu_Callback, MenuAction_Select | MenuAction_End); 
 	MainMenu.SetTitle(sTitle); 
@@ -619,7 +625,7 @@ void OpenBetSelectionMenu(int client, int target)
 	for (int i = 1; i <= 5; i++)
 	{
 		Format(sInfoBuffer, sizeof(sInfoBuffer), "%i;%i", (i*gcv_iBetMultiplier.IntValue),GetClientUserId(target));
-		Format(sDisplayBuffer, sizeof(sDisplayBuffer), "%i Credits", (i*gcv_iBetMultiplier.IntValue));
+		Format(sDisplayBuffer, sizeof(sDisplayBuffer), "%i Points", (i*gcv_iBetMultiplier.IntValue));
 		MainMenu.AddItem(sInfoBuffer, sDisplayBuffer, (isValidBetAmount(client, target, (i*gcv_iBetMultiplier.IntValue)))?ITEMDRAW_DEFAULT:ITEMDRAW_DISABLED);
 	}
 	
@@ -647,7 +653,7 @@ public int CreditMenu_Callback(Menu MainMenu, MenuAction action, int param1, int
 			if (!isValidBetAmount(param1, target, credits))
 			{
 				OpenBetSelectionMenu(param1, target);
-				Multi1v1_Message(param1, "You or your target do not have sufficent credits!");
+				Multi1v1_Message(param1, "You or your target do not have sufficent points!");
 				return;
 			}
 			
@@ -708,7 +714,7 @@ void OpenRequestMenu(int reciever, int sender, int betAmount)
 { 
 	if (betAmount != 0)
 	{
-		Multi1v1_MessageToAll("\x03%N\x01 has challenged \x03%N\x01 over \x03%i\x01 credits!", sender, reciever, betAmount);
+		Multi1v1_MessageToAll("\x03%N\x01 has challenged \x03%N\x01 over \x03%i\x01 points!", sender, reciever, betAmount);
 	}
 	else
 	{
@@ -836,17 +842,17 @@ public void Multi1v1_OnRoundWon(int winner, int loser)
 		
 		if (betAmount > 0)
 		{
-			Multi1v1_MessageToAll(" \x03%N\x01 has beaten \x03%N\x01 in a challenge over \x03%i\x01 credits!", winner, loser, betAmount);
+			Multi1v1_MessageToAll(" \x03%N\x01 has beaten \x03%N\x01 in a challenge over \x03%i\x01 points!", winner, loser, betAmount);
 		}
 		else
 		{
 			Multi1v1_MessageToAll(" \x03%N\x01 has beaten \x03%N\x01 in a challenge!", winner, loser);
 		}
 		
-		if (g_bZephrusStore && betAmount > 0)
+		if (g_bStamm && betAmount > 0)
 		{
-			Store_SetClientCredits(loser, Store_GetClientCredits(loser) - betAmount);
-			Store_SetClientCredits(winner, Store_GetClientCredits(winner) + betAmount);
+			STAMM_DelClientPoints(loser, betAmount);
+			STAMM_AddClientPoints(winner, betAmount);
 		}
 		ga_bIsInChallenge[winner] = false;
 		ga_iBetAmount[winner] = 0;
@@ -1103,11 +1109,11 @@ bool IsValidClient(int client, bool bAllowBots = false, bool bAllowDead = true)
 bool isValidBetAmount(int player1, int player2, int betAmount)
 {
 
-	if (Store_GetClientCredits(player1) < betAmount)
+	if (STAMM_GetClientPoints(player1) < betAmount)
 	{
 		return false;
 	}
-	else if (Store_GetClientCredits(player2) < betAmount)
+	else if (STAMM_GetClientPoints(player2) < betAmount)
 	{
 		return false;
 	}
