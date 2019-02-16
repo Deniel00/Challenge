@@ -174,8 +174,8 @@ public void OnAllPluginsLoaded()
 	if (STAMM_IsAvailable()) 
 	{
 		g_bStamm = true;
-	}
-	g_bStamm = false;
+	}else
+		g_bStamm = false;
 }
 
 public void OnLibraryAdded(const char[] library)
